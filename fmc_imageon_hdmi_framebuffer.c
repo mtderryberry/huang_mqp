@@ -62,12 +62,36 @@
 #define offset 0x01000000
 //unsigned int findCenter(unsigned int current_pixel);
 #define TEST2 1
-#define HISTTEST 1
+//#define HISTTEST 1
 #define hist0_v 50
 #define hist1_v 130
 #define hist2_v 5
 #define hist3_v 5
 
+unsigned int leftside_x, rightside_x = 0;
+unsigned char entry_flag, reentry_flag, exit_flag = 0;
+
+unsigned long frame_count = 0;
+unsigned char cbcr = 0;
+unsigned char luma = 0;
+unsigned int pixel_count_total = 0;
+unsigned int x, y = 0;
+enum {white_to_white, white_to_grey, grey_to_grey, grey_to_white};
+unsigned char current_state, last_state = 0;
+
+unsigned char distance_counter = 0;
+unsigned int found_center, center_y_temp = 0;
+unsigned long hist0;
+unsigned long hist1;
+unsigned long hist2;
+unsigned long hist3;
+unsigned char stop_flag = 0;
+signed int x_min, x_max, y_min, y_max = 0;
+
+unsigned int found = 0;
+
+void reset_everything();
+void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i);
 
 Xuint8 fmc_imageon_hdmii_edid_content[256] =
 {
@@ -390,61 +414,23 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
    //-----------------------------------------------------------------------------------------------
 
    //put image processing algorithm below
-
-   //declarations
-   float lsvm [325];
-
-   float sum;
-   int k = 0;
-
-   //sum = 0;
-   for (i = 0; i<325; i++)
-   {
-	   lsvm[i] = (float)((rand()%100-50.0f)/50.0f);
-	   //xil_printf("%f, ", lsvm[i]);
-   }
-   
-  /* struct blob {
-		unsigned long size;
-		unsigned long hist0;
-		unsigned long hist1;
-		unsigned long hist2;
-		unsigned long hist3;
-   };*/
    
 
    Xuint32 new_storage_size = storage_size/2;
-   unsigned long frame_count = 0;
-   unsigned char cbcr = 0;
-   unsigned char luma = 0;
-   unsigned int pixel_count_total = 0;
-   unsigned int x, y = 0;
-   unsigned char entry_flag, reentry_flag, exit_flag = 0;
-   enum {white_to_white, white_to_grey, grey_to_grey, grey_to_white};
-   unsigned char current_state, last_state = 0;
-   unsigned int leftside_x, rightside_x = 0;
-   unsigned char distance_counter = 0;
-   unsigned int found_center, center_y_temp = 0;
-	unsigned long hist0;
-	unsigned long hist1;
-	unsigned long hist2;
-	unsigned long hist3;
-unsigned char stop_flag = 0;
-	signed int x_min, x_max, y_min, y_max = 0;
+   unsigned int display_size = storage_size;
 
-	unsigned int display_size = storage_size;
-unsigned int found = 0;
 #define TRUE 1
 #define FALSE 0
    while(TRUE)
    {
 	   stop_flag = 0;
 	   pixel_count_total = 1;
-	   xil_printf("\nNumber Found: %d", found);
+	   //xil_printf("\nNumber Found: %d", found);
 	   found = 0;
 	   frame_count++;
+
 	   memcpy(filter, pStorageMem, display_size/*new_storage_size*/);
-	   xil_printf("\nNEW FRAME: %d\n", frame_count);
+	   //xil_printf("\nNEW FRAME: %d\n", frame_count);
 	   //display_size = storage_size;
 	   for(i = 0; i < new_storage_size; i += 2) {
 		   cbcr = *(filter + i + 1);	// cbcr
@@ -466,12 +452,7 @@ unsigned int found = 0;
 				   	   	   }
 				   	   	   //reset if distance is too great
 				   	   	   if(((x - leftside_x) > 100) && entry_flag) {
-				   	   		   //xil_printf("\nToo Big: x: %d, left: %d\n", x, leftside_x);
-				   	   		   leftside_x = 0;
-				   	   		   rightside_x = 0;
-				   	   		   entry_flag = FALSE;
-				   	   		   reentry_flag = FALSE;
-				   	   		   exit_flag = FALSE;
+				   	   		   reset_everything();
 				   	   	   }
 				   	   	   last_state = white_to_white;
 				   	   	   break;
@@ -486,110 +467,20 @@ unsigned int found = 0;
 				   	   		   found++;
 				   	   		   found_center = (rightside_x-leftside_x)/2;
 				   	   		   //xil_printf("\nCENTER FOUND: %d, %d\n Number Found: %d", ((rightside_x+leftside_x)/2), y, found);
+
 				   	   		   if ((*(filter + i - 2*(found_center) + 1)) == 127) {	// check that vertical central point was found at this location previously
-	   		  	  	  	  	  	  	  *(filter + i - 2*(found_center)) = 0;
-#ifdef TEST2
-	   		  	  	  	  	  	  	  // crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
-	   		  	  	  	  	  	  	  // for each pixel in side the range
-	   		  	  	  	  	  	  	  x_min = -15;
-	   		  	  	  	  	  	  	  x_max = 16;
-	   		  	  	  	  	  	  	  y_min = -15;
-	   		  	  	  	  	  	  	  y_max = 16;
-	   		  	  	  	  	  	  	  hist0 = 0;
-	   		  	  	  	  	  	  	  hist1 = 0;
-	   		  	  	  	  	  	  	  hist2 = 0;
-	   		  	  	  	  	  	  	  hist3 = 0;
-	   		  	  	  	  	  	  	  for(x_min = -15; x_min < x_max; x_min++) {
-	   		  	  	  	  	  	  		  for (y_min = 0; y_min < y_max; y_min++) {
-	   		  	  	  	  	  	  			  	 //*(filter + i - 2*(found_center - x_min) - 2*(1920)*(y_min));	// pixel value at image(x,y)
-	   		  	  	  	  	  	  			  	 cbcr = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1);	// cbcr
-	   		  	  	  	  	  	  			  	 luma = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min));	// y
-#ifndef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma > 250)	// sub test to check that we see the right region
-	   		  	  	  	  	  	  			  	 {
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
-	   		  	  	  	  	  	  			  	 }
-#endif
-#ifdef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma < 100)
-	   		  	  	  	  	  	  			  		 hist0++;
-	   		  	  	  	  	  	  			  	 else if (luma < 150)
-	   		  	  	  	  	  	  			  		 hist1++;
-	   		  	  	  	  	  	  			  	 else if (luma < 200)
-	   		  	  	  	  	  	  			  		 hist2++;
-	   		  	  	  	  	  	  			  	 else if (luma < 250)
-	   		  	  	  	  	  	  			  		 hist3++;
-	   		  	  	  	  	  	  			  	 //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n",hist0,hist1,hist2,hist3);
-	   		  	  	  	  	  	  			  	 // if statement to check histogram values to determine if its a red light
-	   		  	  	  	  	  	  			  	 // do whatever when we know its a red light
-	   		  	  	  	  	  	  			  	 if(hist0 < hist0_v && hist1 > hist1_v && hist2 < hist2_v && hist3 < hist3_v) {
-	   		  	  	  	  	  	  			  		 //xil_printf("\nRED LIGHT\n");
-	   		  	  	  	  	  	 	   stop_flag = 1;
-	   		  	  	  	  	  	  			  		 //display_size = new_storage_size;
-	   		  	  	  	  	  	  			  	 }
+	   		  	  	  	  	  	  check_vertical_center_point(found_center, 0, filter, i);
+				   	   		   }
+				   	   		   else {
+				   	   			   *(filter + i - 2*(found_center+1)+1) = 129;
+				   	   		   }
 
-#endif
-	   		  	  	  	  	  	  		  }
-	   		  	  	  	  	  	  	  }
-	   		  	  	  	  	  	  	  //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n X: %d\n Y: %d\n",hist0,hist1,hist2,hist3,x,y);
-
-#endif
-				   	   					// center found call histogram function
-					   	   		  }
-	   		  	  	  	  	  	  else
-	   		  	  	  	  	  	  	*(filter + i - 2*(found_center+1)+1) = 129;
-					   	   		  if ((*(filter + i - 2*(found_center+1)+1)) == 127) {	// additional checks for odd right-left since c truncates
-	   		  	  	  	  	  	  	  *(filter + i - 2*(found_center+1)) = 0;
-#ifdef TEST2
-	   		  	  	  	  	  	  	  // crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
-	   		  	  	  	  	  	  	  // for each pixel in side the range
-	   		  	  	  	  	  	  	  x_min = -15;
-	   		  	  	  	  	  	  	  x_max = 16;
-	   		  	  	  	  	  	  	  y_min = -15;
-	   		  	  	  	  	  	  	  y_max = 16;
-	   		  	  	  	  	  	  	  hist0 = 0;
-	   		  	  	  	  	  	  	  hist1 = 0;
-	   		  	  	  	  	  	  	  hist2 = 0;
-	   		  	  	  	  	  	  	  hist3 = 0;
-	   		  	  	  	  	  	  	  for(x_min = -15; x_min < x_max; x_min++) {
-	   		  	  	  	  	  	  		  for (y_min = 0; y_min < y_max; y_min++) {
-	   		  	  	  	  	  	  			  	 //*(filter + i - 2*(found_center - x_min) - 2*(1920)*(y_min));	// pixel value at image(x,y)
-	   		  	  	  	  	  	  			  	 cbcr = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1);	// cbcr
-	   		  	  	  	  	  	  			  	 luma = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min));	// y
-#ifndef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma > 250)	// sub test to check that we see the right region
-	   		  	  	  	  	  	  			  	 {
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
-	   		  	  	  	  	  	  			  	 }
-#endif
-#ifdef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma < 100)
-	   		  	  	  	  	  	  			  		 hist0++;
-	   		  	  	  	  	  	  			  	 else if (luma < 150)
-	   		  	  	  	  	  	  			  		 hist1++;
-	   		  	  	  	  	  	  			  	 else if (luma < 200)
-	   		  	  	  	  	  	  			  		 hist2++;
-	   		  	  	  	  	  	  			  	 else if (luma < 250)
-	   		  	  	  	  	  	  			  		 hist3++;
-	   		  	  	  	  	  	  			  	 //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n",hist0,hist1,hist2,hist3);
-	   		  	  	  	  	  	  			  	 // if statement to check histogram values to determine if its a red light
-	   		  	  	  	  	  	  			  	 // do whatever when we know its a red light
-	   		  	  	  	  	  	  			  	 if(hist0 < hist0_v && hist1 > hist1_v && hist2 < hist2_v && hist3 < hist3_v) {
-	   		  	  	  	  	  	  			  		 //xil_printf("\nRED LIGHT\n");
-	   		  	  	  	  	  	  			  		 //display_size = new_storage_size;
-	   		  	  	  	  	  	 	   stop_flag = 1;
-	   		  	  	  	  	  	  		   		 }
-#endif
-	   		  	  	  	  	  	  		  }
-	   		  	  	  	  	  	  	  }
-	   		  	  	  	  	  	  	  //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n X: %d\n Y: %d\n",hist0,hist1,hist2,hist3,x,y);
-#endif
-				   	   					// center found call histogram function
-					   	   		  }
-	   		  	  	  	  	  	  else
-	   		  	  	  	  	  	  	*(filter + i - 2*(found_center+1)+1) = 129;
+				   	   		   if ((*(filter + i - 2*(found_center+1)+1)) == 127) {	// additional checks for odd right-left since c truncates
+				   	   			   check_vertical_center_point(found_center+1, 0, filter, i);
+				   	   		   }
+				   	   		   else {
+				   	   			   *(filter + i - 2*(found_center+1)+1) = 129;
+				   	   		   }
 
 				   	   			unsigned int center_y = 0;
 				   	   			unsigned char up_counter = 0;
@@ -611,123 +502,27 @@ unsigned int found = 0;
 				   	   			center_y_temp = up_counter+down_counter/2;
 				   	   			if(up_counter > down_counter) {
 				   	   				center_y = up_counter - center_y_temp;
+
 				   	   				if (*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) == 129)
 				   	   				{
-				   	   					*(filter + i- 2*(found_center) - 2*(center_y*1920)) = 0;
-#ifdef TEST2
-	   		  	  	  	  	  	  	  // crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
-	   		  	  	  	  	  	  	  // for each pixel in side the range
-	   		  	  	  	  	  	  	  x_min = -15;
-	   		  	  	  	  	  	  	  x_max = 16;
-	   		  	  	  	  	  	  	  y_min = -15;
-	   		  	  	  	  	  	  	  y_max = 16;
-	   		  	  	  	  	  	  	  hist0 = 0;
-	   		  	  	  	  	  	  	  hist1 = 0;
-	   		  	  	  	  	  	  	  hist2 = 0;
-	   		  	  	  	  	  	  	  hist3 = 0;
-	   		  	  	  	  	  	  	  for(x_min = -15; x_min < x_max; x_min++) {
-	   		  	  	  	  	  	  		  for (y_min = 0; y_min < y_max; y_min++) {
-	   		  	  	  	  	  	  			  	 //*(filter + i - 2*(found_center - x_min) - 2*(1920)*(y_min));	// pixel value at image(x,y)
-	   		  	  	  	  	  	  			  	 cbcr = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1);	// cbcr
-	   		  	  	  	  	  	  			  	 luma = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min));	// y
-#ifndef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma > 250)	// sub test to check that we see the right region
-	   		  	  	  	  	  	  			  	 {
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
-	   		  	  	  	  	  	  			  	 }
-#endif
-#ifdef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma < 100)
-	   		  	  	  	  	  	  			  		 hist0++;
-	   		  	  	  	  	  	  			  	 else if (luma < 150)
-	   		  	  	  	  	  	  			  		 hist1++;
-	   		  	  	  	  	  	  			  	 else if (luma < 200)
-	   		  	  	  	  	  	  			  		 hist2++;
-	   		  	  	  	  	  	  			  	 else if (luma < 250)
-	   		  	  	  	  	  	  			  		 hist3++;
-	   		  	  	  	  	  	  			  	 //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n",hist0,hist1,hist2,hist3);
-	   		  	  	  	  	  	  			  	 // if statement to check histogram values to determine if its a red light
-	   		  	  	  	  	  	  			  	 // do whatever when we know its a red light
-	   		  	  	  	  	  	  			  	 if(hist0 < hist0_v && hist1 > hist1_v && hist2 < hist2_v && hist3 < hist3_v) {
-	   		  	  	  	  	  	  			  		 //xil_printf("\nRED LIGHT\n");
-	   		  	  	  	  	  	  			  		 //display_size = new_storage_size;
-	   		  	  	  	  	  	 	   stop_flag = 1;
-	   		  	  	  	  	  	  		   		 }
-
-#endif
-	   		  	  	  	  	  	  		  }
-	   		  	  	  	  	  	  	  }
-	 //  		  	  	  	  	  	  	  xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n X: %d\n Y: %d\n",hist0,hist1,hist2,hist3,x,y);
-#endif
-				   	   					// center found call histogram function
-
+				   	   					check_vertical_center_point(found_center, -1*(center_y*1920), filter, i);
 				   	   				}
+
 				   	   				else
 				   	   					*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) = 127;
 				   	   			}
 				   	   			else {
 				   	   				center_y = down_counter - center_y_temp;
+
 				   	   				if (*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) == 129)
 				   	   				{
-				   	   					*(filter + i- 2*(found_center) + 2*(center_y*1920)) = 0;
-#ifdef TEST2
-	   		  	  	  	  	  	  	  // crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
-	   		  	  	  	  	  	  	  // for each pixel in side the range
-	   		  	  	  	  	  	  	  x_min = -15;
-	   		  	  	  	  	  	  	  x_max = 16;
-	   		  	  	  	  	  	  	  y_min = -15;
-	   		  	  	  	  	  	  	  y_max = 16;
-	   		  	  	  	  	  	  	  hist0 = 0;
-	   		  	  	  	  	  	  	  hist1 = 0;
-	   		  	  	  	  	  	  	  hist2 = 0;
-	   		  	  	  	  	  	  	  hist3 = 0;
-	   		  	  	  	  	  	  	  for(x_min = -15; x_min < x_max; x_min++) {
-	   		  	  	  	  	  	  		  for (y_min = 0; y_min < y_max; y_min++) {
-	   		  	  	  	  	  	  			  	 //*(filter + i - 2*(found_center - x_min) - 2*(1920)*(y_min));	// pixel value at image(x,y)
-	   		  	  	  	  	  	  			  	 cbcr = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1);	// cbcr
-	   		  	  	  	  	  	  			  	 luma = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min));	// y
-#ifndef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma > 250)	// sub test to check that we see the right region
-	   		  	  	  	  	  	  			  	 {
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
-		   		  	  	  	  	  	  			  	 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
-	   		  	  	  	  	  	  			  	 }
-#endif
-#ifdef HISTTEST
-	   		  	  	  	  	  	  			  	 if (luma < 100)
-	   		  	  	  	  	  	  			  		 hist0++;
-	   		  	  	  	  	  	  			  	 else if (luma < 150)
-	   		  	  	  	  	  	  			  		 hist1++;
-	   		  	  	  	  	  	  			  	 else if (luma < 200)
-	   		  	  	  	  	  	  			  		 hist2++;
-	   		  	  	  	  	  	  			  	 else if (luma < 250)
-	   		  	  	  	  	  	  			  		 hist3++;
-	   		  	  	  	  	  	  			  	 //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n",hist0,hist1,hist2,hist3);
-	   		  	  	  	  	  	  			  	 // if statement to check histogram values to determine if its a red light
-	   		  	  	  	  	  	  			  	 // do whatever when we know its a red light
-	   		  	  	  	  	  	  			  	 if(hist0 < hist0_v && hist1 > hist1_v && hist2 < hist2_v && hist3 < hist3_v) {
-	   		  	  	  	  	  	  			  		 //xil_printf("\nRED LIGHT\n");
-	   		  	  	  	  	  	  			  		 //display_size = new_storage_size;
-	   		  	  	  	  	  	 	   stop_flag = 1;
-	   		  	  	  	  	  	  		   		 }
-#endif
-	   		  	  	  	  	  	  		  }
-	   		  	  	  	  	  	  	  }
-	   		  	  	  	  	  	  	 // xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n X: %d\n Y: %d\n",hist0,hist1,hist2,hist3,x,y);
-#endif
-				   	   					// center found call histogram function
+				   	   					check_vertical_center_point(found_center, center_y*1920, filter, i);
 				   	   				}
+
 				   	   				else
 				   	   					*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) = 127;
 				   	   			}
-
-
-				   	   		   leftside_x = 0;
-				   	   		   rightside_x = 0;
-				   	   		   entry_flag = FALSE;
-				   	   		   reentry_flag = FALSE;
-				   	   		   exit_flag = FALSE;
+				   	   		   reset_everything();
 				   	   	   }
 						   else {
 							   entry_flag = TRUE;
@@ -770,7 +565,6 @@ unsigned int found = 0;
 				   default:
 					   current_state = white_to_white;
 					   break;
-
 		   }
 	   } // close for
 	   if (stop_flag == 1){
@@ -792,5 +586,65 @@ unsigned int found = 0;
 
    return 0;
 }
+
+void reset_everything() {
+	leftside_x = 0;
+	rightside_x = 0;
+	entry_flag = FALSE;
+	reentry_flag = FALSE;
+	exit_flag = FALSE;
+}
+
+void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i) {
+	*(filter + i - 2*(found_center) + 2*(extra)) = 0;
+
+#ifdef TEST2
+	// crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
+	// for each pixel in side the range
+	x_min = -15;
+	x_max = 16;
+	y_min = -15;
+	y_max = 16;
+	hist0 = 0;
+	hist1 = 0;
+	hist2 = 0;
+	hist3 = 0;
+	for(x_min = -15; x_min < x_max; x_min++) {
+		for (y_min = 0; y_min < y_max; y_min++) {
+			 //*(filter + i - 2*(found_center - x_min) - 2*(1920)*(y_min));	// pixel value at image(x,y)
+			 cbcr = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1);	// cbcr
+			 luma = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min));	// y
+#ifndef HISTTEST
+			 if (luma > 250) {	// sub test to check that we see the right region
+				 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
+				 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
+			 }
+#endif
+#ifdef HISTTEST
+			 if (luma < 100)
+				 hist0++;
+			 else if (luma < 150)
+				 hist1++;
+			 else if (luma < 200)
+				 hist2++;
+			 else if (luma < 250)
+				 hist3++;
+			 //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n",hist0,hist1,hist2,hist3);
+			 // if statement to check histogram values to determine if its a red light
+			 // do whatever when we know its a red light
+			 if(hist0 < hist0_v && hist1 > hist1_v && hist2 < hist2_v && hist3 < hist3_v) {
+				 //xil_printf("\nRED LIGHT\n");
+				 stop_flag = 1;
+				 //display_size = new_storage_size;
+			 }
+#endif
+		}
+	}
+	//xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n X: %d\n Y: %d\n",hist0,hist1,hist2,hist3,x,y);
+
+#endif
+	// center found call histogram function
+}
+
 
 
