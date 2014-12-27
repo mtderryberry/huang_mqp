@@ -68,30 +68,11 @@
 #define hist2_v 5
 #define hist3_v 5
 
-unsigned int leftside_x, rightside_x = 0;
-unsigned char entry_flag, reentry_flag, exit_flag = 0;
 
-unsigned long frame_count = 0;
-unsigned char cbcr = 0;
-unsigned char luma = 0;
-unsigned int pixel_count_total = 0;
-unsigned int x, y = 0;
-enum {white_to_white, white_to_grey, grey_to_grey, grey_to_white};
-unsigned char current_state, last_state = 0;
 
-unsigned char distance_counter = 0;
-unsigned int found_center, center_y_temp = 0;
-unsigned long hist0;
-unsigned long hist1;
-unsigned long hist2;
-unsigned long hist3;
-unsigned char stop_flag = 0;
-signed int x_min, x_max, y_min, y_max = 0;
-
-unsigned int found = 0;
-
-void reset_everything();
-void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i);
+//void reset_everything();
+void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter,
+								 unsigned int i, unsigned char cbcr, unsigned char luma);
 
 Xuint8 fmc_imageon_hdmii_edid_content[256] =
 {
@@ -418,6 +399,22 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
    Xuint32 new_storage_size = storage_size/2;
    unsigned int display_size = storage_size;
+   unsigned int leftside_x, rightside_x = 0;
+   unsigned char entry_flag, reentry_flag, exit_flag = 0;
+
+   unsigned long frame_count = 0;
+   unsigned char cbcr = 0;
+   unsigned char luma = 0;
+   unsigned int pixel_count_total = 0;
+   unsigned int x, y = 0;
+   enum {white_to_white, white_to_grey, grey_to_grey, grey_to_white};
+   unsigned char current_state, last_state = 0;
+
+   unsigned int found_center, center_y_temp = 0;
+
+   unsigned char stop_flag = 0;
+
+   unsigned int found = 0;
 
 #define TRUE 1
 #define FALSE 0
@@ -452,7 +449,12 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 				   	   	   }
 				   	   	   //reset if distance is too great
 				   	   	   if(((x - leftside_x) > 100) && entry_flag) {
-				   	   		   reset_everything();
+				   	   		   //reset_everything();
+				   	   		   leftside_x = 0;
+				   	   		   rightside_x = 0;
+				   	   		   entry_flag = FALSE;
+				   	   		   reentry_flag = FALSE;
+				   	   		   exit_flag = FALSE;
 				   	   	   }
 				   	   	   last_state = white_to_white;
 				   	   	   break;
@@ -469,14 +471,14 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 				   	   		   //xil_printf("\nCENTER FOUND: %d, %d\n Number Found: %d", ((rightside_x+leftside_x)/2), y, found);
 
 				   	   		   if ((*(filter + i - 2*(found_center) + 1)) == 127) {	// check that vertical central point was found at this location previously
-	   		  	  	  	  	  	  check_vertical_center_point(found_center, 0, filter, i);
+	   		  	  	  	  	  	  check_vertical_center_point(found_center, 0, filter, i, cbcr, luma);
 				   	   		   }
 				   	   		   else {
 				   	   			   *(filter + i - 2*(found_center+1)+1) = 129;
 				   	   		   }
 
 				   	   		   if ((*(filter + i - 2*(found_center+1)+1)) == 127) {	// additional checks for odd right-left since c truncates
-				   	   			   check_vertical_center_point(found_center+1, 0, filter, i);
+				   	   			   check_vertical_center_point(found_center+1, 0, filter, i, cbcr, luma);
 				   	   		   }
 				   	   		   else {
 				   	   			   *(filter + i - 2*(found_center+1)+1) = 129;
@@ -488,7 +490,6 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
 				   	   			unsigned char down_counter = 0;
 				   	   			unsigned char temp_color_down = 255;
-				   	   			unsigned int temp_location_down = 0;
 
 				   	   			while(temp_color_up == 255 && up_counter < 100 && ((y - up_counter) > 0)) {	// need to add and not at the top of the image
 				   	   				temp_color_up = *(filter + i - 2*(found_center)-(2*1920)*up_counter);
@@ -505,7 +506,7 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
 				   	   				if (*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) == 129)
 				   	   				{
-				   	   					check_vertical_center_point(found_center, -1*(center_y*1920), filter, i);
+				   	   					check_vertical_center_point(found_center, -1*(center_y*1920), filter, i, cbcr, luma);
 				   	   				}
 
 				   	   				else
@@ -516,13 +517,18 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
 				   	   				if (*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) == 129)
 				   	   				{
-				   	   					check_vertical_center_point(found_center, center_y*1920, filter, i);
+				   	   					check_vertical_center_point(found_center, center_y*1920, filter, i, cbcr, luma);
 				   	   				}
 
 				   	   				else
 				   	   					*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) = 127;
 				   	   			}
-				   	   		   reset_everything();
+				   	   		   //reset_everything();
+				   	   			leftside_x = 0;
+				   	   			rightside_x = 0;
+				   	   			entry_flag = FALSE;
+				   	   			reentry_flag = FALSE;
+				   	   			exit_flag = FALSE;
 				   	   	   }
 						   else {
 							   entry_flag = TRUE;
@@ -587,17 +593,23 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
    return 0;
 }
 
-void reset_everything() {
+/*void reset_everything() {
 	leftside_x = 0;
 	rightside_x = 0;
 	entry_flag = FALSE;
 	reentry_flag = FALSE;
 	exit_flag = FALSE;
-}
+}*/
 
-void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i) {
+void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i,
+								 unsigned char cbcr, unsigned char luma) {
 	*(filter + i - 2*(found_center) + 2*(extra)) = 0;
 
+	signed int x_min, x_max, y_min, y_max = 0;
+	unsigned long hist0;
+	unsigned long hist1;
+	unsigned long hist2;
+	unsigned long hist3;
 #ifdef TEST2
 	// crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
 	// for each pixel in side the range
