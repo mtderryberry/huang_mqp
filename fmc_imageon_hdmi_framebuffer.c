@@ -64,6 +64,7 @@
 #define TEST2 1
 #define HISTTEST 1
 #define REDTEST 1
+//#define SINGLELIGHT 1
 
 #define hist0_v 5
 #define hist1_v 5
@@ -79,8 +80,14 @@
 
 
 //void reset_everything();
+#ifdef SINGLELIGHT
+unsigned char check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter,
+								 unsigned int i, unsigned char cbcr, unsigned char luma, unsigned int x, unsigned int y);
+#endif
+#ifndef SINGLELIGHT
 void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter,
 								 unsigned int i, unsigned char cbcr, unsigned char luma, unsigned int x, unsigned int y);
+#endif
 
 Xuint8 fmc_imageon_hdmii_edid_content[256] =
 {
@@ -424,10 +431,13 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
    unsigned int found = 0;
 
+   unsigned char break_flag = 0;
+
 #define TRUE 1
 #define FALSE 0
    while(TRUE)
    {
+	   break_flag = 0;
 	   stop_flag = 0;
 	   pixel_count_total = 1;
 	   //xil_printf("\nNumber Found: %d", found);
@@ -438,6 +448,9 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 	   //xil_printf("\nNEW FRAME: %d\n", frame_count);
 	   //display_size = storage_size;
 	   for(i = 0; i < new_storage_size; i += 2) {
+		   if(break_flag == 1) {
+			   break;
+		   }
 		   cbcr = *(filter + i + 1);	// cbcr
 		   luma = *(filter + i);	// y
 
@@ -479,14 +492,30 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 				   	   		   //xil_printf("\nCENTER FOUND: %d, %d\n Number Found: %d", ((rightside_x+leftside_x)/2), y, found);
 
 				   	   		   if ((*(filter + i - 2*(found_center) + 1)) == 127) {	// check that vertical central point was found at this location previously
+#ifdef SINGLELIGHT
+				   	   			  break_flag = check_vertical_center_point(found_center, 0, filter, i, cbcr, luma, x, y);
+	   		  	  	  	  	  	  if(break_flag == 1) {
+	   		  	  	  	  	  		  break;
+	   		  	  	  	  	  	  }
+#endif
+#ifndef SINGLELIGHT
 	   		  	  	  	  	  	  check_vertical_center_point(found_center, 0, filter, i, cbcr, luma, x, y);
+#endif
 				   	   		   }
 				   	   		   else {
 				   	   			   *(filter + i - 2*(found_center+1)+1) = 129;
 				   	   		   }
 
 				   	   		   if ((*(filter + i - 2*(found_center+1)+1)) == 127) {	// additional checks for odd right-left since c truncates
+#ifdef SINGLELIGHT
+				   	   			   break_flag = check_vertical_center_point(found_center+1, 0, filter, i, cbcr, luma, x, y);
+				   	   			   if(break_flag == 1) {
+				   	   				   break;
+				   	   			   }
+#endif
+#ifndef SINGLELIGHT
 				   	   			   check_vertical_center_point(found_center+1, 0, filter, i, cbcr, luma, x, y);
+#endif
 				   	   		   }
 				   	   		   else {
 				   	   			   *(filter + i - 2*(found_center+1)+1) = 129;
@@ -514,7 +543,15 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
 				   	   				if (*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) == 129)
 				   	   				{
+#ifdef SINGLELIGHT
+				   	   					break_flag = check_vertical_center_point(found_center, -1*(center_y*1920), filter, i, cbcr, luma, x, y);
+				   	   					if(break_flag == 1) {
+				   	   						break;
+				   	   					}
+#endif
+#ifndef SINGLELIGHT
 				   	   					check_vertical_center_point(found_center, -1*(center_y*1920), filter, i, cbcr, luma, x, y);
+#endif
 				   	   				}
 
 				   	   				else
@@ -525,7 +562,15 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 
 				   	   				if (*(filter + i- 2*(found_center) - 2*(center_y*1920) + 1) == 129)
 				   	   				{
+#ifdef SINGLELIGHT
+				   	   					break_flag = check_vertical_center_point(found_center, center_y*1920, filter, i, cbcr, luma, x, y);
+				   	   					if(break_flag == 1) {
+				   	   						break;
+				   	   					}
+#endif
+#ifndef SINGLELIGHT
 				   	   					check_vertical_center_point(found_center, center_y*1920, filter, i, cbcr, luma, x, y);
+#endif
 				   	   				}
 
 				   	   				else
@@ -608,9 +653,118 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 	reentry_flag = FALSE;
 	exit_flag = FALSE;
 }*/
+#ifdef SINGLELIGHT
+unsigned char check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i,
+								 unsigned char cbcr, unsigned char luma, unsigned int x, unsigned int y) {
 
+	*(filter + i - 2*(found_center) + 2*(extra)) = 0;
+
+	unsigned char flag = 0;
+	signed int x_min, x_max, y_min, y_max = 0;
+	unsigned long hist0;
+	unsigned long hist1;
+	unsigned long hist2;
+	unsigned long hist3;
+	unsigned long hist4;
+	unsigned long hist5;
+	unsigned long hist6;
+	unsigned long hist7;
+	unsigned long hist8;
+	unsigned long hist9;
+	signed int x_min_temp, x_max_temp, y_min_temp, y_max_temp = 0;
+	unsigned char temp_cbcr, temp_luma;
+
+#ifdef TEST2
+	// crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
+	// for each pixel in side the range
+	x_min = -15;
+	x_max = 16;
+	y_min = -15;
+	y_max = 16;
+	x_min_temp = -70;
+	x_max_temp = 80;
+	y_min_temp = -70;
+	y_max_temp = 80;
+	hist0 = 0;
+	hist1 = 0;
+	hist2 = 0;
+	hist3 = 0;
+	hist4 = 0;
+	hist5 = 0;
+	hist6 = 0;
+	hist7 = 0;
+	hist8 = 0;
+	hist9 = 0;
+	for(x_min = -15; x_min < x_max; x_min++) {
+		for (y_min = 0; y_min < y_max; y_min++) {
+			 //*(filter + i - 2*(found_center - x_min) - 2*(1920)*(y_min));	// pixel value at image(x,y)
+			 cbcr = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1);	// cbcr
+			 luma = *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min));	// y
+#ifndef HISTTEST
+			 if (luma > 250) {	// sub test to check that we see the right region
+				 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
+				 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
+			 }
+#endif
+#ifdef HISTTEST
+			 if (luma < 25)
+				 hist0++;
+			 else if (luma < 50)
+				 hist1++;
+			 else if (luma < 75)
+				 hist2++;
+			 else if (luma < 100)
+				 hist3++;
+			 else if (luma < 125)
+				 hist4++;
+			 else if (luma < 150)
+				 hist5++;
+			 else if (luma < 175)
+				 hist6++;
+			 else if (luma < 200)
+				 hist7++;
+			 else if (luma < 225)
+				 hist8++;
+			 else if (luma < 250)
+				 hist9++;
+			 //xil_printf("\n\nHist0 = %d\nHist1 = %d\nHist2 = %d\nHist3 = %d\n",hist0,hist1,hist2,hist3);
+			 // if statement to check histogram values to determine if its a red light
+			 // do whatever when we know its a red light
+			 if(hist0 < hist0_v && hist1 < hist1_v && hist2 < hist2_v && hist3 > hist3_v && hist4 > hist4_v &&
+					 hist5 < hist5_v && hist6 < hist6_v && hist7 < hist7_v && hist8 < hist8_v && hist9 < hist9_v) {
+				 flag = 1;
+#ifndef REDTEST
+				 xil_printf("RED LIGHT\n");
+#endif
+#ifdef REDTEST
+				 for(x_min_temp = -70; x_min_temp < x_max_temp; x_min_temp++) {
+					 for(y_min_temp = -70; y_min_temp < y_max_temp; y_min_temp++) {
+						 cbcr = *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp) + 1);	// cbcr
+						 luma = *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp));	// y
+
+						 if (luma > 250) {
+							 *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp) + 1) = 255;	// cbcr
+							 *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp)) = 0;	// y
+						 }
+					 }
+				 }
+#endif
+			 }
+#endif
+		}
+	}
+	/*xil_printf("\n\nHist0 = %d, Hist1 = %d, Hist2 = %d, Hist3 = %d, Hist4 = %d, Hist5 = %d, Hist6 = %d, Hist7 = %d, Hist8 = %d, Hist9 = %d, X = %d, Y = %d"
+			,hist0,hist1,hist2,hist3,hist4,hist5,hist6,hist7,hist8,hist9,x,y);*/
+
+#endif
+	// center found call histogram function
+	return flag;
+}
+#endif
+#ifndef SINGLELIGHT
 void check_vertical_center_point(unsigned int found_center,  unsigned int extra, Xuint8 *filter, unsigned int i,
 								 unsigned char cbcr, unsigned char luma, unsigned int x, unsigned int y) {
+
 	*(filter + i - 2*(found_center) + 2*(extra)) = 0;
 
 	signed int x_min, x_max, y_min, y_max = 0;
@@ -700,11 +854,6 @@ void check_vertical_center_point(unsigned int found_center,  unsigned int extra,
 						 }
 					 }
 				 }
-				 /*if (luma > 250) {	// sub test to check that we see the right region
-					 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
-					 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
-				 }*/
-				// xil_printf("RED LIGHT\n");
 #endif
 			 }
 #endif
@@ -716,6 +865,7 @@ void check_vertical_center_point(unsigned int found_center,  unsigned int extra,
 #endif
 	// center found call histogram function
 }
+#endif
 
 
 
