@@ -63,6 +63,8 @@
 //unsigned int findCenter(unsigned int current_pixel);
 #define TEST2 1
 #define HISTTEST 1
+#define REDTEST 1
+
 #define hist0_v 5
 #define hist1_v 5
 #define hist2_v 5
@@ -403,7 +405,7 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
    //put image processing algorithm below
    
 
-   Xuint32 new_storage_size = storage_size/2;
+   Xuint32 new_storage_size = (storage_size*2)/5;
    unsigned int display_size = storage_size;
    unsigned int leftside_x, rightside_x = 0;
    unsigned char entry_flag, reentry_flag, exit_flag = 0;
@@ -622,6 +624,8 @@ void check_vertical_center_point(unsigned int found_center,  unsigned int extra,
 	unsigned long hist7;
 	unsigned long hist8;
 	unsigned long hist9;
+	signed int x_min_temp, x_max_temp, y_min_temp, y_max_temp = 0;
+	unsigned char temp_cbcr, temp_luma;
 
 #ifdef TEST2
 	// crude go out and draw a box 31 by 31 (picked semiarbitrarily for proof of concept)
@@ -630,6 +634,10 @@ void check_vertical_center_point(unsigned int found_center,  unsigned int extra,
 	x_max = 16;
 	y_min = -15;
 	y_max = 16;
+	x_min_temp = -70;
+	x_max_temp = 80;
+	y_min_temp = -70;
+	y_max_temp = 80;
 	hist0 = 0;
 	hist1 = 0;
 	hist2 = 0;
@@ -677,9 +685,27 @@ void check_vertical_center_point(unsigned int found_center,  unsigned int extra,
 			 // do whatever when we know its a red light
 			 if(hist0 < hist0_v && hist1 < hist1_v && hist2 < hist2_v && hist3 > hist3_v && hist4 > hist4_v &&
 					 hist5 < hist5_v && hist6 < hist6_v && hist7 < hist7_v && hist8 < hist8_v && hist9 < hist9_v) {
-				 xil_printf("\nRED LIGHT\n");
-				 //stop_flag = 1;
-				 //display_size = new_storage_size;
+#ifndef REDTEST
+				 xil_printf("RED LIGHT\n");
+#endif
+#ifdef REDTEST
+				 for(x_min_temp = -70; x_min_temp < x_max_temp; x_min_temp++) {
+					 for(y_min_temp = -70; y_min_temp < y_max_temp; y_min_temp++) {
+						 cbcr = *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp) + 1);	// cbcr
+						 luma = *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp));	// y
+
+						 if (luma > 250) {
+							 *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp) + 1) = 255;	// cbcr
+							 *(filter + i - 2*(found_center + x_min_temp) - 2*(1920)*(y_min_temp)) = 0;	// y
+						 }
+					 }
+				 }
+				 /*if (luma > 250) {	// sub test to check that we see the right region
+					 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min) + 1) = 255;	// cbcr
+					 *(filter + i - 2*(found_center + x_min) - 2*(1920)*(y_min)) = 0;	// y
+				 }*/
+				// xil_printf("RED LIGHT\n");
+#endif
 			 }
 #endif
 		}
