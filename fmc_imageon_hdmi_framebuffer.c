@@ -448,7 +448,9 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 	   //xil_printf("\nNEW FRAME: %d\n", frame_count);
 	   //display_size = storage_size;
 	   for(i = 0; i < new_storage_size; i += 2) {
-		   if(break_flag == 1) {
+		   *(filter + i) = 129;
+	   }
+		   /*if(break_flag == 1) {
 			   break;
 		   }
 		   cbcr = *(filter + i + 1);	// cbcr
@@ -632,6 +634,7 @@ int fmc_imageon_hdmi_framebuffer_init( fmc_imageon_hdmi_framebuffer_t *pDemo )
 		   *(filter + i) = 90;	// y
 	   }
 	   }
+	   */
    }
 
    //put image processing algorithm above
